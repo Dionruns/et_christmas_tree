@@ -18,7 +18,7 @@ import * as random from 'maath/random';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import './App.css';
 import { getCDNUrl, MEDIAPIPE_WASM_PATH } from './config';
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import { SpeedInsights } from "@vercel/speed-insights/react"
 
 // --- 动态生成照片列表 (使用 CDN 配置) ---
 const TOTAL_NUMBERED_PHOTOS = 27;
