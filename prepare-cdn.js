@@ -37,7 +37,12 @@ const filesToCopy = [
   // HDR 环境贴图
   'dikhololo_night_1k.hdr',
   // 字体文件
-  '全新硬笔行书简.ttf'
+  '全新硬笔行书简.ttf',
+  // MediaPipe WASM 文件
+  'mediapipe-wasm/vision_wasm_internal.js',
+  'mediapipe-wasm/vision_wasm_internal.wasm',
+  'mediapipe-wasm/vision_wasm_nosimd_internal.js',
+  'mediapipe-wasm/vision_wasm_nosimd_internal.wasm'
 ];
 
 // 创建 cdn-assets 目录
@@ -45,10 +50,14 @@ if (!fs.existsSync(cdnDir)) {
   fs.mkdirSync(cdnDir, { recursive: true });
 }
 
-// 创建 photos 子目录
+// 创建子目录
 const photosDir = path.join(cdnDir, 'photos');
+const mediapipeDir = path.join(cdnDir, 'mediapipe-wasm');
 if (!fs.existsSync(photosDir)) {
   fs.mkdirSync(photosDir, { recursive: true });
+}
+if (!fs.existsSync(mediapipeDir)) {
+  fs.mkdirSync(mediapipeDir, { recursive: true });
 }
 
 console.log('📦 开始准备 CDN 文件...\n');

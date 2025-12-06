@@ -17,7 +17,7 @@ import { MathUtils } from 'three';
 import * as random from 'maath/random';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import './App.css';
-import { getCDNUrl } from './config';
+import { getCDNUrl, MEDIAPIPE_WASM_PATH } from './config';
 
 // --- 动态生成照片列表 (使用 CDN 配置) ---
 const TOTAL_NUMBERED_PHOTOS = 27;
@@ -49,12 +49,12 @@ const CONFIG = {
     candyColors: ['#FF0000', '#FFFFFF']
   },
   counts: {
-    foliage: 15000,
-    ornaments: 300,   // 拍立得照片数量
-    elements: 200,    // 圣诞元素数量
-    lights: 400       // 彩灯数量
+    foliage: 80420,
+    ornaments: 270,   // 拍立得照片数量
+    elements: 270,    // 圣诞元素数量
+    lights: 420       // 彩灯数量
   },
-  tree: { height: 22, radius: 9 }, // 树体尺寸
+  tree: { height: 27, radius: 8.42  }, // 树体尺寸
   photos: {
     // top 属性不再需要，因为已经移入 body
     body: bodyPhotoPaths
@@ -584,7 +584,7 @@ const GestureController = ({ onGesture, onMove, onStatus, debugMode }: any) => {
     const setup = async () => {
       onStatus("DOWNLOADING AI...");
       try {
-        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+        const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_PATH);
         gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
@@ -972,7 +972,7 @@ export default function GrandTreeApp() {
           <div 
             className="handwriting-text"
             style={{
-              fontSize: '42px',
+              fontSize: '27px',
               fontWeight: 'normal',
               color: '#FFD700',
               textAlign: 'center',
@@ -1016,7 +1016,7 @@ export default function GrandTreeApp() {
         <>
           <div style={{ position: 'absolute', bottom: '30px', right: '40px', zIndex: 10, display: 'flex', gap: '10px' }}>
             <button onClick={() => setDebugMode(!debugMode)} style={{ padding: '12px 15px', backgroundColor: debugMode ? '#FFD700' : 'rgba(0,0,0,0.5)', border: '1px solid #FFD700', color: debugMode ? '#000' : '#FFD700', fontFamily: 'sans-serif', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
-              {debugMode ? '隐藏调试按钮' : '调试按钮'}
+              {debugMode ? '关闭调试' : 'AI按钮'}
             </button>
             <button onClick={() => setSceneState(s => s === 'CHAOS' ? 'FORMED' : 'CHAOS')} style={{ padding: '12px 30px', backgroundColor: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255, 215, 0, 0.5)', color: '#FFD700', fontFamily: 'serif', fontSize: '14px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
               {sceneState === 'CHAOS' ? '生成圣诞树' : '消失'}

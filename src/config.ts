@@ -2,6 +2,10 @@
 // Vercel 部署时使用空字符串，所有资源都会自动通过 Vercel CDN 加速
 export const CDN_BASE_URL = '';
 
+// MediaPipe WASM 文件路径
+// 开发和生产环境都使用本地文件，后期可以改为 CDN
+export const MEDIAPIPE_WASM_PATH = '/mediapipe-wasm';
+
 // 获取资源的完整 URL
 export const getCDNUrl = (path: string) => {
   return `${CDN_BASE_URL}${path}`;
