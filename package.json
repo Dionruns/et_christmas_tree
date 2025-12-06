@@ -8,8 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prepare-cdn": "node prepare-cdn.js",
-    "download-mediapipe": "node download-mediapipe.js"
+    "download-gesture-model": "node download-gesture-model.js"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",

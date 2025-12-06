@@ -75,3 +75,26 @@ body, html {
     background-position: 200% 0;
   }
 }
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  /* 禁用移动端的双击缩放 */
+  * {
+    touch-action: pan-x pan-y;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* 确保 Canvas 可以接收触摸事件 */
+  canvas {
+    touch-action: none;
+  }
+}
+
+/* 防止移动端页面被拖动 */
+body {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}

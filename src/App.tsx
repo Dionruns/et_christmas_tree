@@ -18,7 +18,7 @@ import * as random from 'maath/random';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import './App.css';
 import { getCDNUrl, MEDIAPIPE_WASM_PATH } from './config';
-import { SpeedInsights } from "@vercel/speed-insights/react"
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // --- 动态生成照片列表 (使用 CDN 配置) ---
 const TOTAL_NUMBERED_PHOTOS = 27;
@@ -50,12 +50,12 @@ const CONFIG = {
     candyColors: ['#FF0000', '#FFFFFF']
   },
   counts: {
-    foliage: 80420,
+    foliage: 8042,
     ornaments: 270,   // 拍立得照片数量
-    elements: 270,    // 圣诞元素数量
+    elements: 199.0,    // 圣诞元素数量
     lights: 420       // 彩灯数量
   },
-  tree: { height: 27, radius: 8.42  }, // 树体尺寸
+  tree: { height: 27 * 1.990 , radius: 8.42 * 1.990  }, // 树体尺寸
   photos: {
     // top 属性不再需要，因为已经移入 body
     body: bodyPhotoPaths
@@ -353,7 +353,7 @@ const MagicLightTrail = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
       const t = i / segments;
       const y = (t * h) - (h / 2);
       const currentRadius = rBase * (1 - t) + 0.5;
-      const angle = t * Math.PI * 8; // 8圈螺旋
+      const angle = t * Math.PI * 2.7*4.2; // 020708042螺旋
       pts.push(new THREE.Vector3(
         currentRadius * Math.cos(angle),
         y,
@@ -494,9 +494,9 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
     if (prevStateRef.current === 'CHAOS' && sceneState === 'FORMED' && controlsRef.current && cameraRef.current) {
       setIsResetting(true);
       
-      // 目标位置：正面观看圣诞树
-      const targetPosition = new THREE.Vector3(0, 8, 60);
-      const targetLookAt = new THREE.Vector3(0, 0, 0);
+      // 目标位置：正面稍微偏右观看圣诞树，能看到完整的树
+      const targetPosition = new THREE.Vector3(19.90, 27, 84.2);
+      const targetLookAt = new THREE.Vector3(0, -2.7, 0);
       
       // 平滑过渡到目标位置
       const startPosition = cameraRef.current.position.clone();
@@ -553,6 +553,26 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
         enabled={!isResetting}
+        // 手机触摸支持
+        enableDamping={true}
+        dampingFactor={0.05}
+        // 触摸手势配置
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,    // 单指旋转
+          TWO: THREE.TOUCH.DOLLY_PAN  // 双指缩放和平移
+        }}
+        // 鼠标按钮配置
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN
+        }}
+        // 缩放速度
+        zoomSpeed={1.2}
+        // 旋转速度
+        rotateSpeed={0.5}
+        // 平移速度
+        panSpeed={0.8}
       />
 
       <color attach="background" args={['#000300']} />
@@ -598,31 +618,38 @@ const GestureController = ({ onGesture, onMove, onStatus, debugMode }: any) => {
     let requestRef: number;
 
     const setup = async () => {
-      onStatus("DOWNLOADING AI...");
+      onStatus("正在加载AI模型...");
       try {
         const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_PATH);
         gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+            modelAssetPath: "/mediapipe-models/gesture_recognizer.task",
             delegate: "GPU"
           },
           runningMode: "VIDEO",
           numHands: 1
         });
-        onStatus("REQUESTING CAMERA...");
+        onStatus("正在请求摄像头权限...");
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.play();
-            onStatus("AI READY: SHOW HAND");
+            onStatus("AI已就绪：请展示手势");
             predictWebcam();
           }
         } else {
-            onStatus("ERROR: CAMERA PERMISSION DENIED");
+            onStatus("错误：摄像头权限被拒绝");
         }
       } catch (err: any) {
-        onStatus(`ERROR: ${err.message || 'MODEL FAILED'}`);
+        const errorMsg = err.message || '未知错误';
+        if (errorMsg.includes('video source')) {
+          onStatus("错误：无法启动摄像头");
+        } else if (errorMsg.includes('permission')) {
+          onStatus("错误：摄像头权限被拒绝");
+        } else {
+          onStatus(`错误：${errorMsg}`);
+        }
       }
     };
 
@@ -645,13 +672,16 @@ const GestureController = ({ onGesture, onMove, onStatus, debugMode }: any) => {
               const name = results.gestures[0][0].categoryName; const score = results.gestures[0][0].score;
               if (score > 0.4) {
                  if (name === "Open_Palm") onGesture("CHAOS"); if (name === "Closed_Fist") onGesture("FORMED");
-                 if (debugMode) onStatus(`DETECTED: ${name}`);
+                 if (debugMode) {
+                   const gestureNameCN = name === "Open_Palm" ? "张开手掌" : name === "Closed_Fist" ? "握拳" : name;
+                   onStatus(`检测到手势：${gestureNameCN}`);
+                 }
               }
               if (results.landmarks.length > 0) {
                 const speed = (0.5 - results.landmarks[0][0].x) * 0.15;
                 onMove(Math.abs(speed) > 0.01 ? speed : 0);
               }
-            } else { onMove(0); if (debugMode) onStatus("AI READY: NO HAND"); }
+            } else { onMove(0); if (debugMode) onStatus("AI已就绪：未检测到手势"); }
         }
         requestRef = requestAnimationFrame(predictWebcam);
       }
@@ -672,16 +702,21 @@ const GestureController = ({ onGesture, onMove, onStatus, debugMode }: any) => {
 export default function GrandTreeApp() {
   const [sceneState, setSceneState] = useState<'CHAOS' | 'FORMED'>('CHAOS');
   const [rotationSpeed, setRotationSpeed] = useState(0);
-  const [aiStatus, setAiStatus] = useState("INITIALIZING...");
+  const [aiStatus, setAiStatus] = useState("AI未启用");
   const [debugMode, setDebugMode] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [userName, setUserName] = useState('');
   const [inputName, setInputName] = useState('');
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hideUI, setHideUI] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [displayedText, setDisplayedText] = useState('');
   const [showGreeting, setShowGreeting] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('初始化...');
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
 
   // 预加载资源 - 优化版本，更真实的进度显示
   useEffect(() => {
@@ -773,7 +808,7 @@ export default function GrandTreeApp() {
       // 延迟2秒后开始打字
       const startDelay = setTimeout(() => {
         setShowGreeting(true);
-        const fullText = `To:${userName}\n天天开心`;
+        const fullText = `To: ${userName}\n天天开心`;
         let currentIndex = 0;
         
         const typingInterval = setInterval(() => {
@@ -802,8 +837,144 @@ export default function GrandTreeApp() {
     }
   };
 
+  // 全屏切换
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch(err => {
+        console.error('无法进入全屏:', err);
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      });
+    }
+  };
+
+  // 监听全屏变化
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // 双击/双触摸画面恢复UI显示
+  useEffect(() => {
+    let lastTap = 0;
+    
+    const handleDoubleClick = () => {
+      if (hideUI) {
+        setHideUI(false);
+      }
+    };
+    
+    const handleTouchEnd = (e: TouchEvent) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTap;
+      
+      if (tapLength < 300 && tapLength > 0) {
+        // 双击检测成功
+        if (hideUI) {
+          setHideUI(false);
+        }
+        e.preventDefault();
+      }
+      lastTap = currentTime;
+    };
+    
+    const container = containerRef.current;
+    if (container) {
+      // 桌面端双击
+      container.addEventListener('dblclick', handleDoubleClick);
+      // 移动端双触摸
+      container.addEventListener('touchend', handleTouchEnd);
+      
+      return () => {
+        container.removeEventListener('dblclick', handleDoubleClick);
+        container.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [hideUI]);
+
+  // 截图功能 - 包含祝福语的完整截图
+  const takeScreenshot = () => {
+    // 先隐藏UI（但保留祝福语）
+    setHideUI(true);
+    
+    // 等待UI隐藏后再截图
+    setTimeout(() => {
+      const container = containerRef.current;
+      if (container) {
+        try {
+          // 使用 html2canvas 库的替代方案：手动合成
+          const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+          const greetingElement = document.querySelector('.greeting-message') as HTMLElement;
+          
+          if (canvas) {
+            // 创建一个新的 canvas 来合成最终图像
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = canvas.width;
+            finalCanvas.height = canvas.height;
+            const ctx = finalCanvas.getContext('2d');
+            
+            if (ctx) {
+              // 绘制 WebGL canvas
+              ctx.drawImage(canvas, 0, 0);
+              
+              // 如果有祝福语，将其绘制到 canvas 上
+              if (greetingElement && showGreeting) {
+                const rect = greetingElement.getBoundingClientRect();
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                // 计算祝福语在 canvas 上的位置
+                const scaleX = canvas.width / canvasRect.width;
+                const scaleY = canvas.height / canvasRect.height;
+                const x = (rect.left - canvasRect.left) * scaleX;
+                const y = (rect.top - canvasRect.top) * scaleY;
+                
+                // 获取实际的字体大小
+                const textElement = greetingElement.querySelector('.handwriting-text') as HTMLElement;
+                const computedStyle = textElement ? window.getComputedStyle(textElement) : null;
+                const actualFontSize = computedStyle ? parseFloat(computedStyle.fontSize) : 32;
+                const actualLineHeight = computedStyle ? parseFloat(computedStyle.lineHeight) : 45;
+                
+                // 绘制文字（不绘制背景和边框）
+                ctx.fillStyle = '#FFD700';
+                ctx.font = `${actualFontSize * scaleX}px HandWriting, KaiTi, cursive`;
+                ctx.textAlign = 'right';
+                ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+                ctx.shadowBlur = 20 * scaleX;
+                
+                const lines = displayedText.split('\n');
+                lines.forEach((line, i) => {
+                  ctx.fillText(line, x + rect.width * scaleX - 20 * scaleX, y + (actualFontSize + i * actualLineHeight) * scaleY);
+                });
+              }
+              
+              // 下载图片
+              const dataURL = finalCanvas.toDataURL('image/png');
+              const link = document.createElement('a');
+              link.download = `圣诞树-${userName || '截图'}-${new Date().getTime()}.png`;
+              link.href = dataURL;
+              link.click();
+            }
+          }
+        } catch (err) {
+          console.error('截图失败:', err);
+          alert('截图失败，请重试');
+        }
+      }
+      
+      // 恢复UI显示
+      setTimeout(() => setHideUI(false), 100);
+    }, 100);
+  };
+
   return (
-    <div style={{ width: '100vw', height: '100vh', backgroundColor: '#000', position: 'relative', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ width: '100vw', height: '100vh', backgroundColor: '#000', position: 'relative', overflow: 'hidden' }}>
       {/* Welcome Modal */}
       {showWelcome && (
         <div style={{
@@ -812,7 +983,7 @@ export default function GrandTreeApp() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundImage: `url(${getCDNUrl('/photos/phone_bg.png')})`,
+          backgroundImage: `url(${getCDNUrl(window.innerWidth <= 768 ? '/photos/phone_bg.png' : '/photos/bg.png')})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
@@ -838,7 +1009,7 @@ export default function GrandTreeApp() {
             <h1 style={{
               color: '#FFD700',
               fontFamily: 'serif',
-              fontSize: '32px',
+              fontSize: '84.2px',
               marginBottom: '20px',
               letterSpacing: '2px',
               textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
@@ -969,81 +1140,347 @@ export default function GrandTreeApp() {
       )}
 
       <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
-        <Canvas dpr={[1, 2]} gl={{ toneMapping: THREE.ReinhardToneMapping }} shadows>
+        <Canvas 
+          dpr={[1, 2]} 
+          gl={{ 
+            toneMapping: THREE.ReinhardToneMapping,
+            preserveDrawingBuffer: true  // 允许截图
+          }} 
+          shadows
+        >
             <Experience sceneState={sceneState} rotationSpeed={rotationSpeed} userName={userName} />
         </Canvas>
       </div>
-      {!showWelcome && <GestureController onGesture={setSceneState} onMove={setRotationSpeed} onStatus={setAiStatus} debugMode={debugMode} />}
+      {!showWelcome && aiEnabled && <GestureController onGesture={setSceneState} onMove={setRotationSpeed} onStatus={setAiStatus} debugMode={debugMode} />}
 
-      {/* Top Message Overlay */}
+      {/* Greeting Message Overlay - 右上角显示 */}
       {showGreeting && displayedText && (
-        <div style={{
-          position: 'absolute',
-          top: '15%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 20,
-          pointerEvents: 'none'
-        }}>
+        <div 
+          className="greeting-message"
+          style={{
+            position: 'absolute',
+            top: window.innerWidth <= 768 ? '18%' : '20%',
+            right: window.innerWidth <= 768 ? '30px' : '120px',
+            zIndex: 20,
+            pointerEvents: 'none',
+            opacity: hideUI ? 0 : 1,
+            transition: 'opacity 0.3s ease'
+          }}
+        >
           <div 
             className="handwriting-text"
             style={{
-              fontSize: '27px',
+              fontSize: window.innerWidth <= 768 ? '27px' : '84.2px',
               fontWeight: 'normal',
               color: '#FFD700',
-              textAlign: 'center',
+              textAlign: 'left',
               textShadow: '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)',
-              letterSpacing: '2px',
+              letterSpacing: window.innerWidth <= 768 ? '1px' : '3px',
               lineHeight: '1.8',
               whiteSpace: 'pre-wrap'
-            }}>
+            }}
+          >
             {displayedText}
           </div>
         </div>
       )}
 
       {/* UI - Stats */}
-      {!showWelcome && (
-        <div style={{ position: 'absolute', bottom: '30px', left: '40px', color: '#888', zIndex: 10, fontFamily: 'sans-serif', userSelect: 'none' }}>
+      {!showWelcome && !hideUI && (
+        <div style={{ 
+          position: 'absolute', 
+          top: window.innerWidth <= 768 ? '60px' : '80px', 
+          left: window.innerWidth <= 768 ? '15px' : '40px', 
+          color: '#888', 
+          zIndex: 10, 
+          fontFamily: 'sans-serif', 
+          userSelect: 'none',
+          fontSize: window.innerWidth <= 768 ? '0.85em' : '1em'
+        }}>
           {userName && (
-            <div style={{ marginBottom: '20px' }}>
-              <p style={{ fontSize: '14px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
+            <div style={{ marginBottom: window.innerWidth <= 768 ? '10px' : '20px' }}>
+              <p style={{ fontSize: window.innerWidth <= 768 ? '12px' : '14px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
                 🎅 {userName} 的圣诞树
               </p>
             </div>
           )}
-          <div style={{ marginBottom: '15px' }}>
-            <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Memories</p>
-            <p style={{ fontSize: '24px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
-              {CONFIG.counts.ornaments.toLocaleString()} <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal' }}>POLAROIDS</span>
+          <div style={{ marginBottom: window.innerWidth <= 768 ? '10px' : '15px' }}>
+            <p style={{ fontSize: window.innerWidth <= 768 ? '8px' : '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>照片数量</p>
+            <p style={{ fontSize: window.innerWidth <= 768 ? '18px' : '24px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
+              {CONFIG.counts.ornaments.toLocaleString()} <span style={{ fontSize: window.innerWidth <= 768 ? '8px' : '10px', color: '#555', fontWeight: 'normal' }}>张</span>
             </p>
           </div>
           <div>
-            <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Foliage</p>
-            <p style={{ fontSize: '24px', color: '#004225', fontWeight: 'bold', margin: 0 }}>
-              {(CONFIG.counts.foliage / 1000).toFixed(0)}K <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal' }}>EMERALD NEEDLES</span>
+            <p style={{ fontSize: window.innerWidth <= 768 ? '8px' : '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>针叶数量</p>
+            <p style={{ fontSize: window.innerWidth <= 768 ? '18px' : '24px', color: '#004225', fontWeight: 'bold', margin: 0 }}>
+              0{(CONFIG.counts.foliage).toFixed(0)} <span style={{ fontSize: window.innerWidth <= 768 ? '8px' : '10px', color: '#555', fontWeight: 'normal' }}>片</span>
             </p>
           </div>
         </div>
       )}
 
       {/* UI - Buttons */}
-      {!showWelcome && (
+      {!showWelcome && !hideUI && (
         <>
-          <div style={{ position: 'absolute', bottom: '30px', right: '40px', zIndex: 10, display: 'flex', gap: '10px' }}>
-            <button onClick={() => setDebugMode(!debugMode)} style={{ padding: '12px 15px', backgroundColor: debugMode ? '#FFD700' : 'rgba(0,0,0,0.5)', border: '1px solid #FFD700', color: debugMode ? '#000' : '#FFD700', fontFamily: 'sans-serif', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
-              {debugMode ? '关闭调试' : 'AI按钮'}
+          <div style={{ 
+            position: 'absolute', 
+            bottom: window.innerWidth <= 768 ? '15px' : '30px', 
+            right: window.innerWidth <= 768 ? '15px' : '40px', 
+            zIndex: 10, 
+            display: 'flex', 
+            flexDirection: window.innerWidth <= 768 ? 'column' : 'row',
+            gap: '10px' 
+          }}>
+            <button 
+              onClick={() => {
+                if (!aiEnabled) {
+                  setShowAiPrompt(true);
+                } else {
+                  setDebugMode(!debugMode);
+                }
+              }}
+              style={{ 
+                padding: window.innerWidth <= 768 ? '10px 12px' : '12px 15px', 
+                backgroundColor: (aiEnabled && debugMode) ? '#FFD700' : 'rgba(0,0,0,0.5)', 
+                border: '1px solid #FFD700', 
+                color: (aiEnabled && debugMode) ? '#000' : '#FFD700', 
+                fontFamily: 'sans-serif', 
+                fontSize: window.innerWidth <= 768 ? '11px' : '12px', 
+                fontWeight: 'bold', 
+                cursor: 'pointer', 
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {aiEnabled ? (debugMode ? '关闭AI摄像头' : 'AI摄像头识别') : '启用AI手势'}
             </button>
-            <button onClick={() => setSceneState(s => s === 'CHAOS' ? 'FORMED' : 'CHAOS')} style={{ padding: '12px 30px', backgroundColor: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255, 215, 0, 0.5)', color: '#FFD700', fontFamily: 'serif', fontSize: '14px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+            <button 
+              onClick={() => setSceneState(s => s === 'CHAOS' ? 'FORMED' : 'CHAOS')} 
+              style={{ 
+                padding: window.innerWidth <= 768 ? '10px 20px' : '12px 30px', 
+                backgroundColor: 'rgba(0,0,0,0.5)', 
+                border: '1px solid rgba(255, 215, 0, 0.5)', 
+                color: '#FFD700', 
+                fontFamily: 'serif', 
+                fontSize: window.innerWidth <= 768 ? '12px' : '14px', 
+                fontWeight: 'bold', 
+                letterSpacing: window.innerWidth <= 768 ? '2px' : '3px', 
+                textTransform: 'uppercase', 
+                cursor: 'pointer', 
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px'
+              }}
+            >
               {sceneState === 'CHAOS' ? '生成圣诞树' : '消失'}
             </button>
           </div>
 
+          {/* 左下角功能按钮 - 可隐藏部分 */}
+          {!hideUI && (
+            <div style={{ 
+              position: 'absolute', 
+              bottom: window.innerWidth <= 768 ? '15px' : '30px', 
+              left: window.innerWidth <= 768 ? '15px' : '40px', 
+              zIndex: 10, 
+              display: 'flex', 
+              flexDirection: window.innerWidth <= 768 ? 'column' : 'row',
+              gap: '10px',
+              alignItems: 'flex-start'
+            }}>
+              <button 
+                onClick={takeScreenshot}
+                title="截图保存"
+                style={{ 
+                  padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                  backgroundColor: 'rgba(0,0,0,0.5)', 
+                  border: '1px solid rgba(255, 215, 0, 0.5)', 
+                  color: '#FFD700', 
+                  fontFamily: 'sans-serif', 
+                  fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+                  cursor: 'pointer', 
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: '8px',
+                  lineHeight: '1',
+                  width: window.innerWidth <= 768 ? '40px' : '44px',
+                  height: window.innerWidth <= 768 ? '40px' : '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                📷
+              </button>
+              <button 
+                onClick={toggleFullscreen}
+                title={isFullscreen ? '退出全屏' : '进入全屏'}
+                style={{ 
+                  padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                  backgroundColor: isFullscreen ? 'rgba(255, 215, 0, 0.3)' : 'rgba(0,0,0,0.5)', 
+                  border: '1px solid rgba(255, 215, 0, 0.5)', 
+                  color: '#FFD700', 
+                  fontFamily: 'sans-serif', 
+                  fontSize: window.innerWidth <= 768 ? '20px' : '22px', 
+                  cursor: 'pointer', 
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: '8px',
+                  lineHeight: '1',
+                  width: window.innerWidth <= 768 ? '40px' : '44px',
+                  height: window.innerWidth <= 768 ? '40px' : '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {isFullscreen ? '⊡' : '⛶'}
+              </button>
+            </div>
+          )}
+
+          {/* 隐藏UI按钮 - 始终显示 */}
+          <button 
+            onClick={() => setHideUI(!hideUI)}
+            title={hideUI ? '显示UI' : '隐藏UI'}
+            style={{ 
+              position: 'absolute',
+              bottom: window.innerWidth <= 768 ? '15px' : '30px', 
+              left: hideUI ? (window.innerWidth <= 768 ? '15px' : '40px') : (window.innerWidth <= 768 ? '15px' : '138px'),
+              zIndex: 11,
+              padding: window.innerWidth <= 768 ? '10px' : '12px', 
+              backgroundColor: hideUI ? '#FFD700' : 'rgba(0,0,0,0.5)', 
+              border: '1px solid rgba(255, 215, 0, 0.5)', 
+              color: hideUI ? '#000' : '#FFD700', 
+              fontFamily: 'sans-serif', 
+              fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+              cursor: 'pointer', 
+              backdropFilter: 'blur(4px)',
+              borderRadius: '8px',
+              lineHeight: '1',
+              width: window.innerWidth <= 768 ? '40px' : '44px',
+              height: window.innerWidth <= 768 ? '40px' : '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            {hideUI ? '👁️' : '🙈'}
+          </button>
+
           {/* UI - AI Status */}
-          <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', color: aiStatus.includes('ERROR') ? '#FF0000' : 'rgba(255, 215, 0, 0.4)', fontSize: '10px', letterSpacing: '2px', zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px' }}>
+          <div style={{ 
+            position: 'absolute', 
+            top: window.innerWidth <= 768 ? '10px' : '20px', 
+            left: '50%', 
+            transform: 'translateX(-50%)', 
+            color: aiStatus.includes('ERROR') ? '#FF0000' : 'rgba(255, 215, 0, 0.4)', 
+            fontSize: window.innerWidth <= 768 ? '9px' : '10px', 
+            letterSpacing: window.innerWidth <= 768 ? '1px' : '2px', 
+            zIndex: 10, 
+            background: 'rgba(0,0,0,0.5)', 
+            padding: window.innerWidth <= 768 ? '3px 6px' : '4px 8px', 
+            borderRadius: '4px',
+            maxWidth: window.innerWidth <= 768 ? '80%' : 'auto',
+            textAlign: 'center'
+          }}>
             {aiStatus}
           </div>
         </>
+      )}
+
+      {/* AI 启用确认弹窗 */}
+      {showAiPrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.9)',
+            border: '2px solid #FFD700',
+            borderRadius: '20px',
+            padding: '30px',
+            maxWidth: '90%',
+            width: '450px',
+            textAlign: 'center',
+            boxShadow: '0 0 50px rgba(255, 215, 0, 0.3)'
+          }}>
+            <div style={{ fontSize: '40px', marginBottom: '15px' }}>🤖</div>
+            <h2 style={{
+              color: '#FFD700',
+              fontFamily: 'sans-serif',
+              fontSize: '24px',
+              marginBottom: '15px',
+              fontWeight: 'bold'
+            }}>
+              启用 AI 手势识别
+            </h2>
+            <p style={{
+              color: '#ECEFF1',
+              fontFamily: 'sans-serif',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              marginBottom: '20px'
+            }}>
+              此功能需要加载 AI 模型文件<br />
+              <span style={{ color: '#FFD700', fontWeight: 'bold' }}>约 8 MB 流量</span><br />
+              <br />
+              启用后可以使用手势控制：<br />
+              • 张开手掌 = 消失<br />
+              • 握拳 = 生成圣诞树<br />
+              • 左右移动手掌 = 旋转视角
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowAiPrompt(false)}
+                style={{
+                  padding: '12px 30px',
+                  fontSize: '16px',
+                  fontFamily: 'sans-serif',
+                  fontWeight: 'bold',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#ECEFF1',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  setAiEnabled(true);
+                  setShowAiPrompt(false);
+                  setAiStatus("正在加载AI模型...");
+                }}
+                style={{
+                  padding: '12px 30px',
+                  fontSize: '16px',
+                  fontFamily: 'sans-serif',
+                  fontWeight: 'bold',
+                  backgroundColor: '#FFD700',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
+                  transition: 'all 0.3s'
+                }}
+              >
+                启用 (8 MB)
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Vercel Speed Insights */}
