@@ -1,8 +1,7 @@
 import { useState, useMemo, useRef, useEffect, Suspense } from 'react';
-import { Canvas, useFrame, extend } from '@react-three/fiber';
+import { Canvas, useFrame, extend, useLoader } from '@react-three/fiber';
 import {
   OrbitControls,
-  Environment,
   PerspectiveCamera,
   shaderMaterial,
   Float,
@@ -14,6 +13,7 @@ import {
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { MathUtils } from 'three';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import * as random from 'maath/random';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import './App.css';
@@ -469,6 +469,19 @@ const TopStar = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   );
 };
 
+// --- Custom Environment Component ---
+const CustomEnvironment = () => {
+  const texture = useLoader(RGBELoader, getCDNUrl('/dikhololo_night_1k.hdr'));
+  
+  useEffect(() => {
+    if (texture) {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+    }
+  }, [texture]);
+
+  return null;
+};
+
 // --- Main Scene Experience ---
 const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAOS' | 'FORMED', rotationSpeed: number, userName: string }) => {
   const controlsRef = useRef<any>(null);
@@ -544,7 +557,9 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
 
       <color attach="background" args={['#000300']} />
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-      <Environment files={getCDNUrl('/dikhololo_night_1k.hdr')} background={false} />
+      <Suspense fallback={null}>
+        <CustomEnvironment />
+      </Suspense>
 
       <ambientLight intensity={0.4} color="#003311" />
       <pointLight position={[30, 30, 30]} intensity={100} color={CONFIG.colors.warmLight} />
