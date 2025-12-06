@@ -8,20 +8,27 @@ import {
   Float,
   Stars,
   Sparkles,
-  useTexture
+  useTexture,
+  Line as DreiLine
 } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { MathUtils } from 'three';
 import * as random from 'maath/random';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
+import './App.css';
+import { getCDNUrl } from './config';
 
-// --- 动态生成照片列表 (top.jpg + 1.jpg 到 31.jpg) ---
-const TOTAL_NUMBERED_PHOTOS = 31;
-// 修改：将 top.jpg 加入到数组开头
+// --- 动态生成照片列表 (使用 CDN 配置) ---
+const TOTAL_NUMBERED_PHOTOS = 27;
 const bodyPhotoPaths = [
-  '/photos/top.jpg',
-  ...Array.from({ length: TOTAL_NUMBERED_PHOTOS }, (_, i) => `/photos/${i + 1}.jpg`)
+  getCDNUrl('/photos/top.png'),
+  ...Array.from({ length: TOTAL_NUMBERED_PHOTOS }, (_, i) => {
+    const num = i + 1;
+    if (num === 25) return getCDNUrl('/photos/25.PNG');
+    if (num >= 26) return getCDNUrl(`/photos/${num}.png`);
+    return getCDNUrl(`/photos/${num}.jpg`);
+  })
 ];
 
 // --- 视觉配置 ---
@@ -330,6 +337,88 @@ const FairyLights = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   );
 };
 
+// --- Component: Magic Light Trail (荧光灯丝环绕动画) ---
+const MagicLightTrail = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
+  const [progress, setProgress] = useState(0);
+  const prevStateRef = useRef(state);
+
+  const allPoints = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    const h = CONFIG.tree.height;
+    const rBase = CONFIG.tree.radius;
+    const segments = 200;
+    
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const y = (t * h) - (h / 2);
+      const currentRadius = rBase * (1 - t) + 0.5;
+      const angle = t * Math.PI * 8; // 8圈螺旋
+      pts.push(new THREE.Vector3(
+        currentRadius * Math.cos(angle),
+        y,
+        currentRadius * Math.sin(angle)
+      ));
+    }
+    return pts;
+  }, []);
+
+  useEffect(() => {
+    // 从 CHAOS 到 FORMED：重置进度开始生成
+    if (prevStateRef.current === 'CHAOS' && state === 'FORMED') {
+      setProgress(0);
+    }
+    prevStateRef.current = state;
+  }, [state]);
+
+  useFrame((_, delta) => {
+    if (state === 'FORMED' && progress < 1) {
+      // 生成动画：从 0 到 1，生成完成后保持在 1
+      setProgress(Math.min(progress + delta * 0.8, 1));
+    } else if (state === 'CHAOS' && progress > 0) {
+      // 消失动画：从当前进度到 0
+      setProgress(Math.max(progress - delta * 2, 0));
+    }
+  });
+
+  if (progress === 0) return null;
+
+  const visiblePoints = allPoints.slice(0, Math.floor(allPoints.length * progress));
+
+  return (
+    <DreiLine
+      points={visiblePoints}
+      color="#00FFFF"
+      lineWidth={2}
+      transparent
+      opacity={0.8}
+    />
+  );
+};
+
+// --- Component: Top Message (树顶祝福文字) ---
+const TopMessage = ({ userName, state }: { userName: string; state: 'CHAOS' | 'FORMED' }) => {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (state === 'FORMED' && userName) {
+      const timer = setTimeout(() => setShow(true), 2000); // 生成完成2秒后显示
+      return () => clearTimeout(timer);
+    } else {
+      setShow(false);
+    }
+  }, [state, userName]);
+
+  if (!show || !userName) return null;
+
+  return (
+    <group position={[0, CONFIG.tree.height / 2 + 4, 0]}>
+      <Float speed={1.5} rotationIntensity={0.1} floatIntensity={0.3}>
+        {/* 这里使用 HTML 覆盖层来显示文字，因为 3D 文字需要额外的字体加载 */}
+      </Float>
+    </group>
+  );
+};
+
 // --- Component: Top Star (No Photo, Pure Gold 3D Star) ---
 const TopStar = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -380,10 +469,57 @@ const TopStar = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
 };
 
 // --- Main Scene Experience ---
-const Experience = ({ sceneState, rotationSpeed }: { sceneState: 'CHAOS' | 'FORMED', rotationSpeed: number }) => {
+const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAOS' | 'FORMED', rotationSpeed: number, userName: string }) => {
   const controlsRef = useRef<any>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
+  const prevStateRef = useRef(sceneState);
+  const [isResetting, setIsResetting] = useState(false);
+
+  // 监听状态变化，自动校准相机
+  useEffect(() => {
+    if (prevStateRef.current === 'CHAOS' && sceneState === 'FORMED' && controlsRef.current && cameraRef.current) {
+      setIsResetting(true);
+      
+      // 目标位置：正面观看圣诞树
+      const targetPosition = new THREE.Vector3(0, 8, 60);
+      const targetLookAt = new THREE.Vector3(0, 0, 0);
+      
+      // 平滑过渡到目标位置
+      const startPosition = cameraRef.current.position.clone();
+      const startTarget = controlsRef.current.target.clone();
+      let progress = 0;
+      
+      const resetInterval = setInterval(() => {
+        progress += 0.02; // 控制过渡速度
+        
+        if (progress >= 1) {
+          progress = 1;
+          clearInterval(resetInterval);
+          setIsResetting(false);
+        }
+        
+        // 使用缓动函数
+        const easeProgress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+        
+        if (cameraRef.current && controlsRef.current) {
+          // 插值相机位置
+          cameraRef.current.position.lerpVectors(startPosition, targetPosition, easeProgress);
+          
+          // 插值目标点
+          const newTarget = new THREE.Vector3().lerpVectors(startTarget, targetLookAt, easeProgress);
+          controlsRef.current.target.copy(newTarget);
+          
+          controlsRef.current.update();
+        }
+      }, 16); // 约60fps
+      
+      return () => clearInterval(resetInterval);
+    }
+    prevStateRef.current = sceneState;
+  }, [sceneState]);
+
   useFrame(() => {
-    if (controlsRef.current) {
+    if (controlsRef.current && !isResetting) {
       controlsRef.current.setAzimuthalAngle(controlsRef.current.getAzimuthalAngle() + rotationSpeed);
       controlsRef.current.update();
     }
@@ -391,12 +527,23 @@ const Experience = ({ sceneState, rotationSpeed }: { sceneState: 'CHAOS' | 'FORM
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 8, 60]} fov={45} />
-      <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={30} maxDistance={120} autoRotate={rotationSpeed === 0 && sceneState === 'FORMED'} autoRotateSpeed={0.3} maxPolarAngle={Math.PI / 1.7} />
+      <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 8, 60]} fov={45} />
+      <OrbitControls 
+        ref={controlsRef} 
+        enablePan={true} 
+        enableZoom={true} 
+        minDistance={20} 
+        maxDistance={120} 
+        autoRotate={rotationSpeed === 0 && sceneState === 'FORMED'} 
+        autoRotateSpeed={0.3} 
+        minPolarAngle={0}
+        maxPolarAngle={Math.PI}
+        enabled={!isResetting}
+      />
 
       <color attach="background" args={['#000300']} />
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-      <Environment preset="night" background={false} />
+      <Environment files={getCDNUrl('/dikhololo_night_1k.hdr')} background={false} />
 
       <ambientLight intensity={0.4} color="#003311" />
       <pointLight position={[30, 30, 30]} intensity={100} color={CONFIG.colors.warmLight} />
@@ -405,11 +552,13 @@ const Experience = ({ sceneState, rotationSpeed }: { sceneState: 'CHAOS' | 'FORM
 
       <group position={[0, -6, 0]}>
         <Foliage state={sceneState} />
+        <MagicLightTrail state={sceneState} />
         <Suspense fallback={null}>
            <PhotoOrnaments state={sceneState} />
            <ChristmasElements state={sceneState} />
            <FairyLights state={sceneState} />
            <TopStar state={sceneState} />
+           <TopMessage userName={userName} state={sceneState} />
         </Suspense>
         <Sparkles count={600} scale={50} size={8} speed={0.4} opacity={0.4} color={CONFIG.colors.silver} />
       </group>
@@ -509,46 +658,377 @@ export default function GrandTreeApp() {
   const [rotationSpeed, setRotationSpeed] = useState(0);
   const [aiStatus, setAiStatus] = useState("INITIALIZING...");
   const [debugMode, setDebugMode] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [inputName, setInputName] = useState('');
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [displayedText, setDisplayedText] = useState('');
+  const [showGreeting, setShowGreeting] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('初始化...');
+
+  // 预加载资源 - 优化版本，更真实的进度显示
+  useEffect(() => {
+    let actualLoadedCount = 0;
+    let displayProgress = 0;
+    const totalResources = CONFIG.photos.body.length + 1; // 照片 + HDR环境贴图
+    
+    // 平滑进度条动画
+    const smoothProgressInterval = setInterval(() => {
+      const targetProgress = Math.floor((actualLoadedCount / totalResources) * 100);
+      
+      if (displayProgress < targetProgress) {
+        displayProgress = Math.min(displayProgress + 1, targetProgress);
+        setLoadingProgress(displayProgress);
+        
+        // 更新加载状态文字
+        if (displayProgress < 30) {
+          setLoadingStatus('加载资源中...');
+        } else if (displayProgress < 70) {
+          setLoadingStatus('准备照片...');
+        } else if (displayProgress < 95) {
+          setLoadingStatus('加载环境贴图...');
+        } else {
+          setLoadingStatus('即将完成...');
+        }
+      }
+      
+      if (displayProgress >= 100) {
+        clearInterval(smoothProgressInterval);
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 300); // 显示100%后稍微延迟
+      }
+    }, 30); // 每30ms更新一次，让进度条更平滑
+    
+    // 预加载照片
+    const imagePromises = CONFIG.photos.body.map((path, index) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          actualLoadedCount++;
+          resolve(true);
+        };
+        img.onerror = () => {
+          actualLoadedCount++;
+          resolve(false);
+        };
+        // 添加随机延迟，模拟真实网络加载
+        setTimeout(() => {
+          img.src = path;
+        }, index * 50); // 每张图片间隔50ms开始加载
+      });
+    });
+
+    // 预加载 HDR 环境贴图
+    const hdrPromise = new Promise((resolve) => {
+      setTimeout(() => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', getCDNUrl('/dikhololo_night_1k.hdr'), true);
+        xhr.onprogress = (event) => {
+          if (event.lengthComputable) {
+            // HDR 文件加载进度也反映到总进度中
+            const hdrProgress = event.loaded / event.total;
+            actualLoadedCount = CONFIG.photos.body.length + hdrProgress;
+          }
+        };
+        xhr.onload = () => {
+          actualLoadedCount = totalResources;
+          resolve(true);
+        };
+        xhr.onerror = () => {
+          actualLoadedCount = totalResources;
+          resolve(false);
+        };
+        xhr.send();
+      }, 200); // HDR 稍后开始加载
+    });
+
+    Promise.all([...imagePromises, hdrPromise]).then(() => {
+      actualLoadedCount = totalResources;
+    });
+
+    return () => clearInterval(smoothProgressInterval);
+  }, []);
+
+  // 打字机效果
+  useEffect(() => {
+    if (sceneState === 'FORMED' && userName && !showWelcome) {
+      // 延迟2秒后开始打字
+      const startDelay = setTimeout(() => {
+        setShowGreeting(true);
+        const fullText = `To:${userName}\n天天开心`;
+        let currentIndex = 0;
+        
+        const typingInterval = setInterval(() => {
+          if (currentIndex <= fullText.length) {
+            setDisplayedText(fullText.slice(0, currentIndex));
+            currentIndex++;
+          } else {
+            clearInterval(typingInterval);
+          }
+        }, 150); // 每个字150毫秒
+
+        return () => clearInterval(typingInterval);
+      }, 2000);
+
+      return () => clearTimeout(startDelay);
+    } else {
+      setShowGreeting(false);
+      setDisplayedText('');
+    }
+  }, [sceneState, userName, showWelcome]);
+
+  const handleStart = () => {
+    if (inputName.trim() && !isLoading) {
+      setUserName(inputName.trim());
+      setShowWelcome(false);
+    }
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#000', position: 'relative', overflow: 'hidden' }}>
+      {/* Welcome Modal */}
+      {showWelcome && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: `url(${getCDNUrl('/photos/phone_bg.png')})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.7)',
+            border: '2px solid #FFD700',
+            borderRadius: '20px',
+            padding: '40px 30px',
+            maxWidth: '90%',
+            width: '500px',
+            margin: '0 auto',
+            textAlign: 'center',
+            boxShadow: '0 0 50px rgba(255, 215, 0, 0.3)',
+            backdropFilter: 'blur(10px)',
+            animation: 'fadeIn 0.5s ease-in'
+          }}>
+            <div style={{ fontSize: '60px', marginBottom: '20px' }}>🎄</div>
+            <h1 style={{
+              color: '#FFD700',
+              fontFamily: 'serif',
+              fontSize: '32px',
+              marginBottom: '20px',
+              letterSpacing: '2px',
+              textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
+            }}>
+              Merry Christmas
+            </h1>
+            <p style={{
+              color: '#ECEFF1',
+              fontFamily: 'sans-serif',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              marginBottom: '30px',
+              opacity: 0.9
+            }}>
+              愿这个圣诞节带给你温暖与欢乐<br />
+              愿新的一年充满希望与美好<br />
+              让我们一起点亮这棵属于你的圣诞树 ✨
+            </p>
+            <input
+              type="text"
+              placeholder="请输入你的名字..."
+              value={inputName}
+              onChange={(e) => setInputName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleStart()}
+              disabled={false}
+              style={{
+                width: '100%',
+                padding: '15px 20px',
+                fontSize: '16px',
+                fontFamily: 'sans-serif',
+                border: '2px solid rgba(255, 215, 0, 0.3)',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                color: '#FFD700',
+                outline: 'none',
+                marginBottom: '15px',
+                textAlign: 'center',
+                transition: 'all 0.3s',
+                boxSizing: 'border-box'
+              }}
+              autoFocus
+            />
+            
+            {/* 加载进度条 - 始终显示 */}
+            <div style={{ marginBottom: '20px', minHeight: '50px' }}>
+              {isLoading ? (
+                <>
+                  <div style={{
+                    width: '100%',
+                    height: '10px',
+                    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+                    borderRadius: '5px',
+                    overflow: 'hidden',
+                    marginBottom: '12px',
+                    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)'
+                  }}>
+                    <div style={{
+                      width: `${loadingProgress}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #FFD700, #FFA500, #FFD700)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 2s infinite',
+                      transition: 'width 0.1s linear',
+                      boxShadow: '0 0 15px rgba(255, 215, 0, 0.8)',
+                      borderRadius: '5px'
+                    }} />
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <p style={{
+                      color: 'rgba(255, 215, 0, 0.9)',
+                      fontSize: '13px',
+                      margin: 0,
+                      fontFamily: 'sans-serif'
+                    }}>
+                      {loadingStatus}
+                    </p>
+                    <p style={{
+                      color: '#FFD700',
+                      fontSize: '14px',
+                      margin: 0,
+                      fontFamily: 'sans-serif',
+                      fontWeight: 'bold'
+                    }}>
+                      {loadingProgress}%
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p style={{
+                  color: 'rgba(76, 175, 80, 0.9)',
+                  fontSize: '13px',
+                  margin: 0,
+                  fontFamily: 'sans-serif',
+                  textAlign: 'center'
+                }}>
+                  ✓ 资源加载完成
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={handleStart}
+              disabled={!inputName.trim() || isLoading}
+              style={{
+                padding: '15px 40px',
+                fontSize: '18px',
+                fontFamily: 'serif',
+                fontWeight: 'bold',
+                letterSpacing: '3px',
+                textTransform: 'uppercase',
+                backgroundColor: (inputName.trim() && !isLoading) ? '#FFD700' : 'rgba(255, 215, 0, 0.3)',
+                color: (inputName.trim() && !isLoading) ? '#000' : '#666',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: (inputName.trim() && !isLoading) ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s',
+                boxShadow: (inputName.trim() && !isLoading) ? '0 0 20px rgba(255, 215, 0, 0.5)' : 'none'
+              }}
+            >
+              {isLoading ? '加载中...' : '开始体验'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
         <Canvas dpr={[1, 2]} gl={{ toneMapping: THREE.ReinhardToneMapping }} shadows>
-            <Experience sceneState={sceneState} rotationSpeed={rotationSpeed} />
+            <Experience sceneState={sceneState} rotationSpeed={rotationSpeed} userName={userName} />
         </Canvas>
       </div>
-      <GestureController onGesture={setSceneState} onMove={setRotationSpeed} onStatus={setAiStatus} debugMode={debugMode} />
+      {!showWelcome && <GestureController onGesture={setSceneState} onMove={setRotationSpeed} onStatus={setAiStatus} debugMode={debugMode} />}
+
+      {/* Top Message Overlay */}
+      {showGreeting && displayedText && (
+        <div style={{
+          position: 'absolute',
+          top: '15%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 20,
+          pointerEvents: 'none'
+        }}>
+          <div 
+            className="handwriting-text"
+            style={{
+              fontSize: '42px',
+              fontWeight: 'normal',
+              color: '#FFD700',
+              textAlign: 'center',
+              textShadow: '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)',
+              letterSpacing: '2px',
+              lineHeight: '1.8',
+              whiteSpace: 'pre-wrap'
+            }}>
+            {displayedText}
+          </div>
+        </div>
+      )}
 
       {/* UI - Stats */}
-      <div style={{ position: 'absolute', bottom: '30px', left: '40px', color: '#888', zIndex: 10, fontFamily: 'sans-serif', userSelect: 'none' }}>
-        <div style={{ marginBottom: '15px' }}>
-          <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Memories</p>
-          <p style={{ fontSize: '24px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
-            {CONFIG.counts.ornaments.toLocaleString()} <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal' }}>POLAROIDS</span>
-          </p>
+      {!showWelcome && (
+        <div style={{ position: 'absolute', bottom: '30px', left: '40px', color: '#888', zIndex: 10, fontFamily: 'sans-serif', userSelect: 'none' }}>
+          {userName && (
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '14px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
+                🎅 {userName} 的圣诞树
+              </p>
+            </div>
+          )}
+          <div style={{ marginBottom: '15px' }}>
+            <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Memories</p>
+            <p style={{ fontSize: '24px', color: '#FFD700', fontWeight: 'bold', margin: 0 }}>
+              {CONFIG.counts.ornaments.toLocaleString()} <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal' }}>POLAROIDS</span>
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Foliage</p>
+            <p style={{ fontSize: '24px', color: '#004225', fontWeight: 'bold', margin: 0 }}>
+              {(CONFIG.counts.foliage / 1000).toFixed(0)}K <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal' }}>EMERALD NEEDLES</span>
+            </p>
+          </div>
         </div>
-        <div>
-          <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Foliage</p>
-          <p style={{ fontSize: '24px', color: '#004225', fontWeight: 'bold', margin: 0 }}>
-            {(CONFIG.counts.foliage / 1000).toFixed(0)}K <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal' }}>EMERALD NEEDLES</span>
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* UI - Buttons */}
-      <div style={{ position: 'absolute', bottom: '30px', right: '40px', zIndex: 10, display: 'flex', gap: '10px' }}>
-        <button onClick={() => setDebugMode(!debugMode)} style={{ padding: '12px 15px', backgroundColor: debugMode ? '#FFD700' : 'rgba(0,0,0,0.5)', border: '1px solid #FFD700', color: debugMode ? '#000' : '#FFD700', fontFamily: 'sans-serif', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
-           {debugMode ? 'HIDE DEBUG' : '🛠 DEBUG'}
-        </button>
-        <button onClick={() => setSceneState(s => s === 'CHAOS' ? 'FORMED' : 'CHAOS')} style={{ padding: '12px 30px', backgroundColor: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255, 215, 0, 0.5)', color: '#FFD700', fontFamily: 'serif', fontSize: '14px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
-           {sceneState === 'CHAOS' ? 'Assemble Tree' : 'Disperse'}
-        </button>
-      </div>
+      {!showWelcome && (
+        <>
+          <div style={{ position: 'absolute', bottom: '30px', right: '40px', zIndex: 10, display: 'flex', gap: '10px' }}>
+            <button onClick={() => setDebugMode(!debugMode)} style={{ padding: '12px 15px', backgroundColor: debugMode ? '#FFD700' : 'rgba(0,0,0,0.5)', border: '1px solid #FFD700', color: debugMode ? '#000' : '#FFD700', fontFamily: 'sans-serif', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+              {debugMode ? '隐藏调试按钮' : '调试按钮'}
+            </button>
+            <button onClick={() => setSceneState(s => s === 'CHAOS' ? 'FORMED' : 'CHAOS')} style={{ padding: '12px 30px', backgroundColor: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255, 215, 0, 0.5)', color: '#FFD700', fontFamily: 'serif', fontSize: '14px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+              {sceneState === 'CHAOS' ? '生成圣诞树' : '消失'}
+            </button>
+          </div>
 
-      {/* UI - AI Status */}
-      <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', color: aiStatus.includes('ERROR') ? '#FF0000' : 'rgba(255, 215, 0, 0.4)', fontSize: '10px', letterSpacing: '2px', zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px' }}>
-        {aiStatus}
-      </div>
+          {/* UI - AI Status */}
+          <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', color: aiStatus.includes('ERROR') ? '#FF0000' : 'rgba(255, 215, 0, 0.4)', fontSize: '10px', letterSpacing: '2px', zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px' }}>
+            {aiStatus}
+          </div>
+        </>
+      )}
     </div>
   );
 }

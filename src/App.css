@@ -1,4 +1,20 @@
 /* src/index.css */
+
+/* 自定义字体 */
+@font-face {
+  font-family: 'HandWriting';
+  src: url('/全新硬笔行书简.ttf') format('truetype'),
+       url('/%E5%85%A8%E6%96%B0%E7%A1%AC%E7%AC%94%E8%A1%8C%E4%B9%A6%E7%AE%80.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 强制使用手写字体 */
+.handwriting-text {
+  font-family: 'HandWriting', 'KaiTi', '楷体', cursive !important;
+}
+
 body, html {
   margin: 0;
   padding: 0;
@@ -11,4 +27,51 @@ body, html {
 #root {
   width: 100vw;
   height: 100vh;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* 打字机效果 */
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 进度条闪光动画 */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
