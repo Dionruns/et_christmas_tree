@@ -13,6 +13,10 @@ export default defineConfig({
       '.ngrok-free.dev',
       '.loca.lt',
       '.trycloudflare.com'
-    ]
-  }
+    ],
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    }
+  },
+  assetsInclude: ['**/*.hdr'], // 确保 HDR 文件被正确处理为资源
 })
