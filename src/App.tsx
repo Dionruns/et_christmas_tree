@@ -18,6 +18,7 @@ import * as random from 'maath/random';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import './App.css';
 import { getCDNUrl, MEDIAPIPE_WASM_PATH } from './config';
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 // --- 动态生成照片列表 (使用 CDN 配置) ---
 const TOTAL_NUMBERED_PHOTOS = 27;
@@ -1029,6 +1030,9 @@ export default function GrandTreeApp() {
           </div>
         </>
       )}
+
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
   );
 }
