@@ -841,38 +841,45 @@ export default function GrandTreeApp() {
     });
 
     // 预加载 HDR 环境贴图
+    let hdrLoaded = false;
     const hdrPromise = new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
       xhr.open('GET', getCDNUrl('/dikhololo_night_1k.hdr'), true);
-      xhr.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const hdrProgress = event.loaded / event.total;
-          // 确保不超过总数
-          actualLoadedCount = Math.min(CONFIG.photos.body.length + hdrProgress, totalResources - 1);
-        }
-      };
       xhr.onload = () => {
-        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        if (!hdrLoaded) {
+          hdrLoaded = true;
+          actualLoadedCount++;
+        }
         resolve(true);
       };
       xhr.onerror = () => {
         console.warn('HDR 加载失败');
-        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        if (!hdrLoaded) {
+          hdrLoaded = true;
+          actualLoadedCount++;
+        }
         resolve(false);
       };
       xhr.send();
     });
 
     // 预加载字体
+    let fontLoaded = false;
     const fontPromise = new Promise((resolve) => {
       const fontFace = new FontFace('HandWriting', `url(${getCDNUrl('/全新硬笔行书简.ttf')})`);
       fontFace.load().then((loadedFont) => {
         document.fonts.add(loadedFont);
-        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        if (!fontLoaded) {
+          fontLoaded = true;
+          actualLoadedCount++;
+        }
         resolve(true);
       }).catch(() => {
         console.warn('字体加载失败');
-        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        if (!fontLoaded) {
+          fontLoaded = true;
+          actualLoadedCount++;
+        }
         resolve(false);
       });
     });
