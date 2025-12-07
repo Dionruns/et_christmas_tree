@@ -21,15 +21,13 @@ import { getCDNUrl, MEDIAPIPE_WASM_PATH } from './config';
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // --- 动态生成照片列表 (使用 CDN 配置) ---
-// 实际有30张编号照片：1-24.jpg, 25.PNG, 26-27.png, 28-30.jpg
-const TOTAL_NUMBERED_PHOTOS = 30;
+// 实际有27张编号照片：1-27.png + top.png
+const TOTAL_NUMBERED_PHOTOS = 27;
 const bodyPhotoPaths = [
   getCDNUrl('/photos/top.png'),
   ...Array.from({ length: TOTAL_NUMBERED_PHOTOS }, (_, i) => {
     const num = i + 1;
-    if (num === 25) return getCDNUrl('/photos/25.PNG');
-    if (num >= 26 && num <= 27) return getCDNUrl(`/photos/${num}.png`);
-    return getCDNUrl(`/photos/${num}.jpg`);
+    return getCDNUrl(`/photos/${num}.png`);
   })
 ];
 
