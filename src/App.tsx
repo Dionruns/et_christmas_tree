@@ -21,13 +21,14 @@ import { getCDNUrl, MEDIAPIPE_WASM_PATH } from './config';
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // --- 动态生成照片列表 (使用 CDN 配置) ---
-const TOTAL_NUMBERED_PHOTOS = 27;
+// 实际有30张编号照片：1-24.jpg, 25.PNG, 26-27.png, 28-30.jpg
+const TOTAL_NUMBERED_PHOTOS = 30;
 const bodyPhotoPaths = [
   getCDNUrl('/photos/top.png'),
   ...Array.from({ length: TOTAL_NUMBERED_PHOTOS }, (_, i) => {
     const num = i + 1;
     if (num === 25) return getCDNUrl('/photos/25.PNG');
-    if (num >= 26) return getCDNUrl(`/photos/${num}.png`);
+    if (num >= 26 && num <= 27) return getCDNUrl(`/photos/${num}.png`);
     return getCDNUrl(`/photos/${num}.jpg`);
   })
 ];
@@ -145,7 +146,7 @@ const PhotoOrnaments = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
       const chaosPos = new THREE.Vector3((Math.random()-0.5)*70, (Math.random()-0.5)*70, (Math.random()-0.5)*70);
       const h = CONFIG.tree.height; const y = (Math.random() * h) - (h / 2);
       const rBase = CONFIG.tree.radius;
-      const currentRadius = (rBase * (1 - (y + (h/2)) / h)) + 0.5;
+      const currentRadius = (rBase * (1 - (y + (h/2)) / h)) + 1.0; // 增加偏移，避免叠加
       const theta = Math.random() * Math.PI * 2;
       const targetPos = new THREE.Vector3(currentRadius * Math.cos(theta), y, currentRadius * Math.sin(theta));
 
@@ -609,7 +610,7 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
 
 // --- Gesture Controller ---
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const GestureController = ({ onGesture, onMove, onStatus, debugMode }: any) => {
+const GestureController = ({ onGesture, onMove, onStatus, debugMode, onLoadProgress }: any) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -619,11 +620,77 @@ const GestureController = ({ onGesture, onMove, onStatus, debugMode }: any) => {
 
     const setup = async () => {
       onStatus("正在加载AI模型...");
+      
+      // 预加载模型文件并显示进度
+      const modelUrl = getCDNUrl("/mediapipe-models/gesture_recognizer.task");
+      
       try {
+        // 先下载模型文件
+        let simulatedProgress = 0;
+        let progressInterval: number | null = null;
+        
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', modelUrl, true);
+          xhr.responseType = 'blob';
+          
+          let hasRealProgress = false;
+          
+          xhr.onprogress = (event) => {
+            if (event.lengthComputable) {
+              hasRealProgress = true;
+              const progress = Math.floor((event.loaded / event.total) * 100);
+              if (onLoadProgress) {
+                onLoadProgress(progress);
+              }
+              onStatus(`正在加载AI模型... ${progress}%`);
+            }
+          };
+          
+          xhr.onloadstart = () => {
+            // 如果无法获取真实进度，使用模拟进度
+            progressInterval = window.setInterval(() => {
+              if (!hasRealProgress && simulatedProgress < 90) {
+                simulatedProgress += Math.random() * 10;
+                simulatedProgress = Math.min(simulatedProgress, 90);
+                if (onLoadProgress) {
+                  onLoadProgress(Math.floor(simulatedProgress));
+                }
+                onStatus(`正在加载AI模型... ${Math.floor(simulatedProgress)}%`);
+              }
+            }, 300);
+          };
+          
+          xhr.onload = () => {
+            if (progressInterval) {
+              clearInterval(progressInterval);
+            }
+            if (xhr.status === 200) {
+              if (onLoadProgress) {
+                onLoadProgress(100);
+              }
+              onStatus('AI模型加载完成');
+              resolve(xhr.response);
+            } else {
+              reject(new Error('模型加载失败'));
+            }
+          };
+          
+          xhr.onerror = () => {
+            if (progressInterval) {
+              clearInterval(progressInterval);
+            }
+            reject(new Error('网络错误'));
+          };
+          
+          xhr.send();
+        });
+        
+        // 初始化 MediaPipe
         const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_PATH);
         gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: "/mediapipe-models/gesture_recognizer.task",
+            modelAssetPath: modelUrl,
             delegate: "GPU"
           },
           runningMode: "VIDEO",
@@ -717,12 +784,15 @@ export default function GrandTreeApp() {
   const [loadingStatus, setLoadingStatus] = useState('初始化...');
   const [aiEnabled, setAiEnabled] = useState(false);
   const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiLoadingProgress, setAiLoadingProgress] = useState(0);
+  const [showAiLoading, setShowAiLoading] = useState(false);
 
-  // 预加载资源 - 优化版本，更真实的进度显示
+  // 预加载资源 - 修复版本，确保所有资源加载完成后才显示
   useEffect(() => {
     let actualLoadedCount = 0;
     let displayProgress = 0;
-    const totalResources = CONFIG.photos.body.length + 1; // 照片 + HDR环境贴图
+    const totalResources = CONFIG.photos.body.length + 2; // 照片 + HDR环境贴图 + 字体
+    let allResourcesLoaded = false;
     
     // 平滑进度条动画
     const smoothProgressInterval = setInterval(() => {
@@ -744,16 +814,17 @@ export default function GrandTreeApp() {
         }
       }
       
-      if (displayProgress >= 100) {
+      // 只有当所有资源都加载完成且进度达到100%时才关闭加载界面
+      if (displayProgress >= 100 && allResourcesLoaded) {
         clearInterval(smoothProgressInterval);
         setTimeout(() => {
           setIsLoading(false);
-        }, 300); // 显示100%后稍微延迟
+        }, 300);
       }
-    }, 30); // 每30ms更新一次，让进度条更平滑
+    }, 30);
     
     // 预加载照片
-    const imagePromises = CONFIG.photos.body.map((path, index) => {
+    const imagePromises = CONFIG.photos.body.map((path) => {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -761,46 +832,68 @@ export default function GrandTreeApp() {
           resolve(true);
         };
         img.onerror = () => {
+          console.warn('图片加载失败:', path);
           actualLoadedCount++;
           resolve(false);
         };
-        // 添加随机延迟，模拟真实网络加载
-        setTimeout(() => {
-          img.src = path;
-        }, index * 50); // 每张图片间隔50ms开始加载
+        img.src = path;
       });
     });
 
     // 预加载 HDR 环境贴图
     const hdrPromise = new Promise((resolve) => {
-      setTimeout(() => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', getCDNUrl('/dikhololo_night_1k.hdr'), true);
-        xhr.onprogress = (event) => {
-          if (event.lengthComputable) {
-            // HDR 文件加载进度也反映到总进度中
-            const hdrProgress = event.loaded / event.total;
-            actualLoadedCount = CONFIG.photos.body.length + hdrProgress;
-          }
-        };
-        xhr.onload = () => {
-          actualLoadedCount = totalResources;
-          resolve(true);
-        };
-        xhr.onerror = () => {
-          actualLoadedCount = totalResources;
-          resolve(false);
-        };
-        xhr.send();
-      }, 200); // HDR 稍后开始加载
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', getCDNUrl('/dikhololo_night_1k.hdr'), true);
+      xhr.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const hdrProgress = event.loaded / event.total;
+          // 确保不超过总数
+          actualLoadedCount = Math.min(CONFIG.photos.body.length + hdrProgress, totalResources - 1);
+        }
+      };
+      xhr.onload = () => {
+        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        resolve(true);
+      };
+      xhr.onerror = () => {
+        console.warn('HDR 加载失败');
+        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        resolve(false);
+      };
+      xhr.send();
     });
 
-    Promise.all([...imagePromises, hdrPromise]).then(() => {
+    // 预加载字体
+    const fontPromise = new Promise((resolve) => {
+      const fontFace = new FontFace('HandWriting', `url(${getCDNUrl('/全新硬笔行书简.ttf')})`);
+      fontFace.load().then((loadedFont) => {
+        document.fonts.add(loadedFont);
+        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        resolve(true);
+      }).catch(() => {
+        console.warn('字体加载失败');
+        actualLoadedCount = Math.min(actualLoadedCount + 1, totalResources);
+        resolve(false);
+      });
+    });
+
+    // 等待所有资源加载完成
+    Promise.all([...imagePromises, hdrPromise, fontPromise]).then(() => {
       actualLoadedCount = totalResources;
+      allResourcesLoaded = true;
     });
 
     return () => clearInterval(smoothProgressInterval);
   }, []);
+
+  // 监听 AI 加载进度，完成后关闭弹窗
+  useEffect(() => {
+    if (aiLoadingProgress >= 100 && showAiLoading) {
+      setTimeout(() => {
+        setShowAiLoading(false);
+      }, 500); // 显示100%后延迟500ms关闭
+    }
+  }, [aiLoadingProgress, showAiLoading]);
 
   // 打字机效果
   useEffect(() => {
@@ -1135,6 +1228,20 @@ export default function GrandTreeApp() {
             >
               {isLoading ? '加载中...' : '开始体验'}
             </button>
+            
+            {/* 版权声明 */}
+            <p style={{
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '12px',
+              marginTop: '20px',
+              lineHeight: '1.6',
+              textAlign: 'center',
+              fontFamily: 'sans-serif'
+            }}>
+              本网站图片来源：华晨宇工作室（微博）<br />
+              若有侵权，联系作者删除<br />
+              邮箱：<a href="mailto:Dionruns@163.com" style={{ color: 'rgba(255, 215, 0, 0.7)', textDecoration: 'none' }}>Dionruns@163.com</a>
+            </p>
           </div>
         </div>
       )}
@@ -1151,7 +1258,7 @@ export default function GrandTreeApp() {
             <Experience sceneState={sceneState} rotationSpeed={rotationSpeed} userName={userName} />
         </Canvas>
       </div>
-      {!showWelcome && aiEnabled && <GestureController onGesture={setSceneState} onMove={setRotationSpeed} onStatus={setAiStatus} debugMode={debugMode} />}
+      {!showWelcome && aiEnabled && <GestureController onGesture={setSceneState} onMove={setRotationSpeed} onStatus={setAiStatus} debugMode={debugMode} onLoadProgress={setAiLoadingProgress} />}
 
       {/* Greeting Message Overlay - 右上角显示 */}
       {showGreeting && displayedText && (
@@ -1388,6 +1495,82 @@ export default function GrandTreeApp() {
         </>
       )}
 
+      {/* AI 加载进度弹窗 */}
+      {showAiLoading && aiLoadingProgress < 100 && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.9)',
+            border: '2px solid #FFD700',
+            borderRadius: '20px',
+            padding: '30px',
+            maxWidth: '90%',
+            width: '400px',
+            textAlign: 'center',
+            boxShadow: '0 0 50px rgba(255, 215, 0, 0.3)'
+          }}>
+            <div style={{ fontSize: '40px', marginBottom: '15px' }}>🤖</div>
+            <h2 style={{
+              color: '#FFD700',
+              fontFamily: 'sans-serif',
+              fontSize: '20px',
+              marginBottom: '20px',
+              fontWeight: 'bold'
+            }}>
+              正在加载 AI 模型
+            </h2>
+            <div style={{
+              width: '100%',
+              height: '10px',
+              backgroundColor: 'rgba(255, 215, 0, 0.2)',
+              borderRadius: '5px',
+              overflow: 'hidden',
+              marginBottom: '15px',
+              boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)'
+            }}>
+              <div style={{
+                width: `${aiLoadingProgress}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #FFD700, #FFA500, #FFD700)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 2s infinite',
+                transition: 'width 0.3s ease',
+                boxShadow: '0 0 15px rgba(255, 215, 0, 0.8)',
+                borderRadius: '5px'
+              }} />
+            </div>
+            <p style={{
+              color: '#FFD700',
+              fontSize: '18px',
+              margin: 0,
+              fontFamily: 'sans-serif',
+              fontWeight: 'bold'
+            }}>
+              {aiLoadingProgress}%
+            </p>
+            <p style={{
+              color: 'rgba(255, 255, 255, 0.6)',
+              fontSize: '13px',
+              marginTop: '10px',
+              fontFamily: 'sans-serif'
+            }}>
+              约 8 MB，请稍候...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* AI 启用确认弹窗 */}
       {showAiPrompt && (
         <div style={{
@@ -1460,6 +1643,8 @@ export default function GrandTreeApp() {
                 onClick={() => {
                   setAiEnabled(true);
                   setShowAiPrompt(false);
+                  setShowAiLoading(true);
+                  setAiLoadingProgress(0);
                   setAiStatus("正在加载AI模型...");
                 }}
                 style={{
