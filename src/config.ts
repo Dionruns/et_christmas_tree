@@ -1,5 +1,4 @@
 // CDN 配置
-
 export const CDN_BASE_URL = '';
 
 // MediaPipe WASM 文件路径
