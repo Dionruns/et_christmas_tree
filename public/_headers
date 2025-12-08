@@ -1,0 +1,36 @@
+# 静态资源缓存策略 - 减少 CDN 流量
+
+# 照片资源 - 缓存 1 年
+/photos/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 音频文件 - 缓存 1 年
+/*.mp3
+  Cache-Control: public, max-age=31536000, immutable
+
+# HDR 环境贴图 - 缓存 1 年
+/*.hdr
+  Cache-Control: public, max-age=31536000, immutable
+
+# 字体文件 - 缓存 1 年
+/*.ttf
+  Cache-Control: public, max-age=31536000, immutable
+
+# MediaPipe 模型和 WASM 文件 - 缓存 1 年
+/mediapipe-models/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/mediapipe-wasm/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML 文件 - 短缓存，便于更新
+/*.html
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# 根目录 HTML - 短缓存
+/
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# JS 和 CSS 文件（带 hash）- 缓存 1 年
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
