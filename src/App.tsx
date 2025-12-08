@@ -599,13 +599,13 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
         minDistance={2.7} 
         maxDistance={84.2*1.990} 
         autoRotate={rotationSpeed === 0 && sceneState === 'FORMED'} 
-        autoRotateSpeed={0.3} 
+        autoRotateSpeed={0.27} 
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
         enabled={!isResetting}
         // 手机触摸支持
         enableDamping={true}
-        dampingFactor={0.05}
+        dampingFactor={0.0842}
         // 触摸手势配置
         touches={{
           ONE: THREE.TOUCH.ROTATE,    // 单指旋转
@@ -618,11 +618,11 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
           RIGHT: THREE.MOUSE.PAN
         }}
         // 缩放速度
-        zoomSpeed={1.2}
+        zoomSpeed={1.27}
         // 旋转速度
-        rotateSpeed={0.5}
+        rotateSpeed={0.842}
         // 平移速度（增加手机版滑动幅度）
-        panSpeed={1.5}
+        panSpeed={1.842}
       />
 
       <color attach="background" args={['#000300']} />
@@ -1054,17 +1054,45 @@ export default function GrandTreeApp() {
   };
 
   // 全屏切换
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().then(() => {
+      try {
+        await containerRef.current?.requestFullscreen();
         setIsFullscreen(true);
-      }).catch(err => {
+        // 锁定为竖屏
+        if (screen.orientation && 'lock' in screen.orientation) {
+          try {
+            await (screen.orientation as any).lock('portrait');
+          } catch (err) {
+            console.log('无法锁定屏幕方向:', err);
+          }
+        }
+      } catch (err) {
         console.error('无法进入全屏:', err);
-      });
+      }
     } else {
-      document.exitFullscreen().then(() => {
-        setIsFullscreen(false);
-      });
+      await document.exitFullscreen();
+      setIsFullscreen(false);
+      // 解锁屏幕方向
+      if (screen.orientation && 'unlock' in screen.orientation) {
+        (screen.orientation as any).unlock();
+      }
+    }
+  };
+
+  // 切换屏幕方向
+  const toggleOrientation = async () => {
+    if (screen.orientation && 'lock' in screen.orientation) {
+      try {
+        const currentOrientation = screen.orientation.type;
+        if (currentOrientation.includes('portrait')) {
+          await (screen.orientation as any).lock('landscape');
+        } else {
+          await (screen.orientation as any).lock('portrait');
+        }
+      } catch (err) {
+        console.error('无法切换屏幕方向:', err);
+      }
     }
   };
 
@@ -1591,6 +1619,31 @@ export default function GrandTreeApp() {
               >
                 {isFullscreen ? '⊡' : '⛶'}
               </button>
+              {isFullscreen && (
+                <button 
+                  onClick={toggleOrientation}
+                  title="切换屏幕方向"
+                  style={{ 
+                    padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.5)', 
+                    border: '1px solid rgba(255, 215, 0, 0.5)', 
+                    color: '#FFD700', 
+                    fontFamily: 'sans-serif', 
+                    fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+                    cursor: 'pointer', 
+                    backdropFilter: 'blur(4px)',
+                    borderRadius: '8px',
+                    lineHeight: '1',
+                    width: window.innerWidth <= 768 ? '40px' : '44px',
+                    height: window.innerWidth <= 768 ? '40px' : '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  🔄
+                </button>
+              )}
               <button 
                 onClick={() => setHideUI(!hideUI)}
                 title="隐藏UI"
