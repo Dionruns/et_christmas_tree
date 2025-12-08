@@ -591,7 +591,7 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
 
   return (
     <>
-      <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 8, 60]} fov={45} />
+      <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 8.42, 84.2]} fov={45} />
       <OrbitControls 
         ref={controlsRef} 
         enablePan={true} 
