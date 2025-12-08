@@ -621,8 +621,8 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
         zoomSpeed={1.2}
         // 旋转速度
         rotateSpeed={0.5}
-        // 平移速度
-        panSpeed={0.8}
+        // 平移速度（增加手机版滑动幅度）
+        panSpeed={1.5}
       />
 
       <color attach="background" args={['#000300']} />
