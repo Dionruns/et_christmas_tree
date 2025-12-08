@@ -130,9 +130,6 @@ const Foliage = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   );
 };
 
-// 全局变量存储实际照片数量
-let actualPhotoCount = 0;
-
 // --- Component: Photo Ornaments (Double-Sided Polaroid) ---
 const PhotoOrnaments = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   const textures = useTexture(CONFIG.photos.body);
@@ -223,9 +220,6 @@ const PhotoOrnaments = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
         textureIndex++;
       }
     }
-    
-    // 更新全局照片数量（应该等于 CONFIG.counts.ornaments）
-    actualPhotoCount = photos.length;
     
     return photos;
   }, [textures]);

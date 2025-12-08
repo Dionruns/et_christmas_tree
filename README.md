@@ -6,7 +6,7 @@
 
 ## 🌐 在线体验
 
-- **Cloudflare 版本**: [https://et-christmas-tree.pages.dev](https://et-christmas-tree.pages.dev)
+- **Cloudflare 版本**: [https://etett.qzz.io/](https://etett.qzz.io/)
 - **Vercel 版本**: 已暂时关闭
 
 ## ✨ 核心特性
@@ -102,26 +102,26 @@ const TOTAL_NUMBERED_PHOTOS = 27; // <--- 修改这个数字！
 
 ### CDN 配置（重要！）
 
-为了保护隐私，CDN 地址不会上传到 GitHub。部署前需要配置：
+为了保护隐私，CDN 地址使用环境变量配置，不会上传到 GitHub。
 
-1. **复制配置文件**：
+#### 方式一：环境变量（推荐）
+
+1. **本地开发**：复制并编辑环境变量文件
    ```bash
-   cp src/config.private.example.ts src/config.private.ts
+   cp .env.example .env.local
    ```
+   编辑 `.env.local`，填入你的 CDN 地址（或留空使用本地资源）
 
-2. **编辑配置**：
-   打开 `src/config.private.ts`，填入你的 CDN 地址：
-   ```typescript
-   export const PRIVATE_CDN_BASE_URL = 'http://your-cdn-domain.com/path';
-   export const PRIVATE_MEDIAPIPE_WASM_PATH = 'http://your-cdn-domain.com/path/mediapipe-wasm';
-   ```
+2. **Cloudflare Pages 部署**：
+   - 无需配置，直接使用本地静态资源
+   - 或在项目设置中添加环境变量（可选）
 
-3. **本地开发**：
-   本地开发时会自动使用 `public/` 目录的资源，无需配置 CDN
+3. **Vercel 部署**：
+   - 在项目设置中添加环境变量：
+     - `VITE_CDN_BASE_URL`：你的 CDN 地址
+     - `VITE_MEDIAPIPE_WASM_PATH`：MediaPipe WASM 路径
 
-4. **生产部署**：
-   - Cloudflare Pages：可以使用本地静态资源，CDN 地址留空即可
-   - Vercel：需要配置外部 CDN（如 MinIO/S3）
+#### 方式二：配置文件（备选）
 
 详细说明请查看 [CONFIG_SETUP.md](./CONFIG_SETUP.md)
 

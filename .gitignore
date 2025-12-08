@@ -26,3 +26,5 @@ dist-ssr
 
 # Private configuration files
 src/config.private.ts
+.env.local
+.env.production.local

@@ -2,9 +2,10 @@
 // 如果是本地开发环境，使用本地资源；生产环境使用 CDN
 const isDevelopment = import.meta.env.DEV;
 
-// 导入私密配置（生产环境需要）
-// 请复制 config.private.example.ts 为 config.private.ts 并填入实际的 CDN 地址
-import { PRIVATE_CDN_BASE_URL, PRIVATE_MEDIAPIPE_WASM_PATH } from './config.private';
+// 从环境变量读取 CDN 配置（优先级最高）
+// 如果没有设置环境变量，则使用空字符串（本地资源模式，适用于 Cloudflare Pages）
+const PRIVATE_CDN_BASE_URL = import.meta.env.VITE_CDN_BASE_URL || '';
+const PRIVATE_MEDIAPIPE_WASM_PATH = import.meta.env.VITE_MEDIAPIPE_WASM_PATH || '/mediapipe-wasm';
 
 export const CDN_BASE_URL = isDevelopment 
   ? '' 
