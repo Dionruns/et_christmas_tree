@@ -100,20 +100,30 @@ const TOTAL_NUMBERED_PHOTOS = 27; // <--- 修改这个数字！
 
 ## ⚙️ 配置说明
 
-### CDN 配置
-项目支持两种资源加载方式：
+### CDN 配置（重要！）
 
-1. **本地静态资源**（默认，适用于 Cloudflare Workers）
-   ```typescript
-   // src/config.ts
-   export const CDN_BASE_URL = '';
+为了保护隐私，CDN 地址不会上传到 GitHub。部署前需要配置：
+
+1. **复制配置文件**：
+   ```bash
+   cp src/config.private.example.ts src/config.private.ts
    ```
 
-2. **MinIO/S3 CDN**（适用于 Vercel 等需要外部CDN的场景）
+2. **编辑配置**：
+   打开 `src/config.private.ts`，填入你的 CDN 地址：
    ```typescript
-   // src/config.ts
-   export const CDN_BASE_URL = 'http://yourip:9000/etchristmastree/public';
+   export const PRIVATE_CDN_BASE_URL = 'http://your-cdn-domain.com/path';
+   export const PRIVATE_MEDIAPIPE_WASM_PATH = 'http://your-cdn-domain.com/path/mediapipe-wasm';
    ```
+
+3. **本地开发**：
+   本地开发时会自动使用 `public/` 目录的资源，无需配置 CDN
+
+4. **生产部署**：
+   - Cloudflare Pages：可以使用本地静态资源，CDN 地址留空即可
+   - Vercel：需要配置外部 CDN（如 MinIO/S3）
+
+详细说明请查看 [CONFIG_SETUP.md](./CONFIG_SETUP.md)
 
 ### 视觉参数调整
 如果你熟悉代码，可以在 `src/App.tsx` 中的 `CONFIG` 对象里调整更多视觉参数：

@@ -51,7 +51,7 @@ const CONFIG = {
   counts: {
     foliage: 8042,
     ornaments: 270,   // 拍立得照片数量
-    elements: 199.0,    // 圣诞元素数量
+    elements: 270.0,    // 圣诞元素数量
     lights: 420       // 彩灯数量
   },
   tree: { height: 27 * 1.990 , radius: 8.42 * 1.990  }, // 树体尺寸
@@ -130,48 +130,105 @@ const Foliage = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   );
 };
 
+// 全局变量存储实际照片数量
+let actualPhotoCount = 0;
+
 // --- Component: Photo Ornaments (Double-Sided Polaroid) ---
 const PhotoOrnaments = ({ state }: { state: 'CHAOS' | 'FORMED' }) => {
   const textures = useTexture(CONFIG.photos.body);
-  const count = CONFIG.counts.ornaments;
   const groupRef = useRef<THREE.Group>(null);
 
   const borderGeometry = useMemo(() => new THREE.PlaneGeometry(1.2, 1.5), []);
   const photoGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
   const data = useMemo(() => {
-    return new Array(count).fill(0).map((_, i) => {
-      const chaosPos = new THREE.Vector3((Math.random()-0.5)*70, (Math.random()-0.5)*70, (Math.random()-0.5)*70);
-      const h = CONFIG.tree.height; const y = (Math.random() * h) - (h / 2);
-      const rBase = CONFIG.tree.radius;
-      const currentRadius = (rBase * (1 - (y + (h/2)) / h)) + 1.0; // 增加偏移，避免叠加
-      const theta = Math.random() * Math.PI * 2;
-      const targetPos = new THREE.Vector3(currentRadius * Math.cos(theta), y, currentRadius * Math.sin(theta));
-
-      const isBig = Math.random() < 0.2;
-      const baseScale = isBig ? 2.2 : 0.8 + Math.random() * 0.6;
-      const weight = 0.8 + Math.random() * 1.2;
-      const borderColor = CONFIG.colors.borders[Math.floor(Math.random() * CONFIG.colors.borders.length)];
-
-      const rotationSpeed = {
-        x: (Math.random() - 0.5) * 1.0,
-        y: (Math.random() - 0.5) * 1.0,
-        z: (Math.random() - 0.5) * 1.0
-      };
-      const chaosRotation = new THREE.Euler(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
-
-      return {
-        chaosPos, targetPos, scale: baseScale, weight,
-        textureIndex: i % textures.length,
-        borderColor,
-        currentPos: chaosPos.clone(),
-        chaosRotation,
-        rotationSpeed,
-        wobbleOffset: Math.random() * 10,
-        wobbleSpeed: 0.5 + Math.random() * 0.5
-      };
+    const h = CONFIG.tree.height;
+    const rBase = CONFIG.tree.radius;
+    const totalCount = CONFIG.counts.ornaments; // 固定总数
+    
+    // 将树分成多层，根据每层的半径（圆周长）计算权重
+    const layers = 10; // 树的层数
+    const layerData: { y: number; radius: number; weight: number }[] = [];
+    let totalWeight = 0;
+    
+    // 计算每层的半径和权重（权重 = 圆周长）
+    for (let i = 0; i < layers; i++) {
+      const normalizedY = i / layers; // 0 (底部) 到 1 (顶部)
+      const y = -h/2 + normalizedY * h;
+      const radius = rBase * (1 - normalizedY);
+      const circumference = 2 * Math.PI * radius;
+      layerData.push({ y, radius, weight: circumference });
+      totalWeight += circumference;
+    }
+    
+    // 根据权重分配照片数量到各层
+    let remainingPhotos = totalCount;
+    const layersWithPhotos = layerData.map((layer, index) => {
+      const isLastLayer = index === layerData.length - 1;
+      const photos = isLastLayer 
+        ? remainingPhotos // 最后一层分配剩余的所有照片
+        : Math.round((layer.weight / totalWeight) * totalCount);
+      remainingPhotos -= photos;
+      return { ...layer, photos };
     });
-  }, [textures, count]);
+    
+    // 生成照片数据
+    const photos: any[] = [];
+    let textureIndex = 0;
+    
+    for (const layer of layersWithPhotos) {
+      for (let i = 0; i < layer.photos; i++) {
+        const chaosPos = new THREE.Vector3((Math.random()-0.5)*70, (Math.random()-0.5)*70, (Math.random()-0.5)*70);
+        
+        // Y坐标：在当前层的高度范围内随机
+        const layerHeight = h / layers;
+        const y = layer.y + (Math.random() - 0.5) * layerHeight * 0.6;
+        
+        // 角度：在当前层均匀分布，加上随机偏移
+        const baseTheta = (i / layer.photos) * Math.PI * 2;
+        const theta = baseTheta + (Math.random() - 0.5) * 0.3;
+        
+        // 半径：在当前层半径基础上加上偏移
+        const currentRadius = layer.radius + 1.0 + (Math.random() - 0.5) * 0.5;
+        
+        const targetPos = new THREE.Vector3(
+          currentRadius * Math.cos(theta), 
+          y, 
+          currentRadius * Math.sin(theta)
+        );
+
+        const isBig = Math.random() < 0.15;
+        const baseScale = isBig ? 2.0 : 0.9 + Math.random() * 0.4;
+        const weight = 0.8 + Math.random() * 1.2;
+        const borderColor = CONFIG.colors.borders[Math.floor(Math.random() * CONFIG.colors.borders.length)];
+
+        const rotationSpeed = {
+          x: (Math.random() - 0.5) * 1.0,
+          y: (Math.random() - 0.5) * 1.0,
+          z: (Math.random() - 0.5) * 1.0
+        };
+        const chaosRotation = new THREE.Euler(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+
+        photos.push({
+          chaosPos, targetPos, scale: baseScale, weight,
+          textureIndex: textureIndex % textures.length,
+          borderColor,
+          currentPos: chaosPos.clone(),
+          chaosRotation,
+          rotationSpeed,
+          wobbleOffset: Math.random() * 10,
+          wobbleSpeed: 0.5 + Math.random() * 0.5
+        });
+        
+        textureIndex++;
+      }
+    }
+    
+    // 更新全局照片数量（应该等于 CONFIG.counts.ornaments）
+    actualPhotoCount = photos.length;
+    
+    return photos;
+  }, [textures]);
 
   useFrame((stateObj, delta) => {
     if (!groupRef.current) return;
@@ -784,12 +841,33 @@ export default function GrandTreeApp() {
   const [showAiPrompt, setShowAiPrompt] = useState(false);
   const [aiLoadingProgress, setAiLoadingProgress] = useState(0);
   const [showAiLoading, setShowAiLoading] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [bgImageLoaded, setBgImageLoaded] = useState(false);
+
+  // 尝试在欢迎页面自动播放音乐
+  useEffect(() => {
+    if (showWelcome && audioRef.current && !isMusicPlaying) {
+      // 尝试自动播放，如果被浏览器阻止也没关系
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsMusicPlaying(true);
+          })
+          .catch(() => {
+            // 自动播放被阻止，用户需要手动点击播放
+            console.log('自动播放被阻止，等待用户交互');
+          });
+      }
+    }
+  }, [showWelcome]);
 
   // 预加载资源 - 修复版本，确保所有资源加载完成后才显示
   useEffect(() => {
     let actualLoadedCount = 0;
     let displayProgress = 0;
-    const totalResources = CONFIG.photos.body.length + 2; // 照片 + HDR环境贴图 + 字体
+    const totalResources = CONFIG.photos.body.length + 3; // 照片 + HDR环境贴图 + 字体 + 背景图
     let allResourcesLoaded = false;
     
     // 平滑进度条动画
@@ -882,8 +960,32 @@ export default function GrandTreeApp() {
       });
     });
 
+    // 预加载背景图片
+    let bgLoaded = false;
+    const bgPromise = new Promise((resolve) => {
+      const bgImg = new Image();
+      bgImg.onload = () => {
+        if (!bgLoaded) {
+          bgLoaded = true;
+          actualLoadedCount++;
+          setBgImageLoaded(true);
+        }
+        resolve(true);
+      };
+      bgImg.onerror = () => {
+        console.warn('背景图加载失败');
+        if (!bgLoaded) {
+          bgLoaded = true;
+          actualLoadedCount++;
+          setBgImageLoaded(true);
+        }
+        resolve(false);
+      };
+      bgImg.src = getCDNUrl(window.innerWidth <= 768 ? '/photos/phone_bg.png' : '/photos/bg.png');
+    });
+
     // 等待所有资源加载完成
-    Promise.all([...imagePromises, hdrPromise, fontPromise]).then(() => {
+    Promise.all([...imagePromises, hdrPromise, fontPromise, bgPromise]).then(() => {
       actualLoadedCount = totalResources;
       allResourcesLoaded = true;
     });
@@ -932,6 +1034,28 @@ export default function GrandTreeApp() {
     if (inputName.trim() && !isLoading) {
       setUserName(inputName.trim());
       setShowWelcome(false);
+      // 开始播放背景音乐
+      if (audioRef.current) {
+        audioRef.current.play().catch(err => {
+          console.log('自动播放被阻止:', err);
+        });
+        setIsMusicPlaying(true);
+      }
+    }
+  };
+
+  // 切换音乐播放/暂停
+  const toggleMusic = () => {
+    if (audioRef.current) {
+      if (isMusicPlaying) {
+        audioRef.current.pause();
+        setIsMusicPlaying(false);
+      } else {
+        audioRef.current.play().catch(err => {
+          console.log('播放失败:', err);
+        });
+        setIsMusicPlaying(true);
+      }
     }
   };
 
@@ -1073,6 +1197,9 @@ export default function GrandTreeApp() {
 
   return (
     <div ref={containerRef} style={{ width: '100vw', height: '100vh', backgroundColor: '#000', position: 'relative', overflow: 'hidden' }}>
+      {/* 背景音乐 */}
+      <audio ref={audioRef} src={getCDNUrl('/Seek‌ByHuaChenyu.mp3')} loop />
+      
       {/* Welcome Modal */}
       {showWelcome && (
         <div style={{
@@ -1081,7 +1208,8 @@ export default function GrandTreeApp() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundImage: `url(${getCDNUrl(window.innerWidth <= 768 ? '/photos/phone_bg.png' : '/photos/bg.png')})`,
+          backgroundImage: bgImageLoaded ? `url(${getCDNUrl(window.innerWidth <= 768 ? '/photos/phone_bg.png' : '/photos/bg.png')})` : 'none',
+          backgroundColor: '#000',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
@@ -1396,7 +1524,7 @@ export default function GrandTreeApp() {
               left: window.innerWidth <= 768 ? '15px' : '40px', 
               zIndex: 10, 
               display: 'flex', 
-              flexDirection: window.innerWidth <= 768 ? 'column' : 'row',
+              flexDirection: 'row',
               gap: '10px',
               alignItems: 'flex-start'
             }}>
@@ -1424,6 +1552,29 @@ export default function GrandTreeApp() {
                 📷
               </button>
               <button 
+                onClick={toggleMusic}
+                title={isMusicPlaying ? '暂停音乐' : '播放音乐'}
+                style={{ 
+                  padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                  backgroundColor: isMusicPlaying ? 'rgba(255, 215, 0, 0.3)' : 'rgba(0,0,0,0.5)', 
+                  border: '1px solid rgba(255, 215, 0, 0.5)', 
+                  color: '#FFD700', 
+                  fontFamily: 'sans-serif', 
+                  fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+                  cursor: 'pointer', 
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: '8px',
+                  lineHeight: '1',
+                  width: window.innerWidth <= 768 ? '40px' : '44px',
+                  height: window.innerWidth <= 768 ? '40px' : '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {isMusicPlaying ? '🔊' : '🔇'}
+              </button>
+              <button 
                 onClick={toggleFullscreen}
                 title={isFullscreen ? '退出全屏' : '进入全屏'}
                 style={{ 
@@ -1446,38 +1597,63 @@ export default function GrandTreeApp() {
               >
                 {isFullscreen ? '⊡' : '⛶'}
               </button>
+              <button 
+                onClick={() => setHideUI(!hideUI)}
+                title="隐藏UI"
+                style={{ 
+                  padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                  backgroundColor: 'rgba(0,0,0,0.5)', 
+                  border: '1px solid rgba(255, 215, 0, 0.5)', 
+                  color: '#FFD700', 
+                  fontFamily: 'sans-serif', 
+                  fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+                  cursor: 'pointer', 
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: '8px',
+                  lineHeight: '1',
+                  width: window.innerWidth <= 768 ? '40px' : '44px',
+                  height: window.innerWidth <= 768 ? '40px' : '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                🙈
+              </button>
             </div>
           )}
 
-          {/* 隐藏UI按钮 - 始终显示 */}
-          <button 
-            onClick={() => setHideUI(!hideUI)}
-            title={hideUI ? '显示UI' : '隐藏UI'}
-            style={{ 
-              position: 'absolute',
-              bottom: window.innerWidth <= 768 ? '15px' : '30px', 
-              left: hideUI ? (window.innerWidth <= 768 ? '15px' : '40px') : (window.innerWidth <= 768 ? '15px' : '138px'),
-              zIndex: 11,
-              padding: window.innerWidth <= 768 ? '10px' : '12px', 
-              backgroundColor: hideUI ? '#FFD700' : 'rgba(0,0,0,0.5)', 
-              border: '1px solid rgba(255, 215, 0, 0.5)', 
-              color: hideUI ? '#000' : '#FFD700', 
-              fontFamily: 'sans-serif', 
-              fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
-              cursor: 'pointer', 
-              backdropFilter: 'blur(4px)',
-              borderRadius: '8px',
-              lineHeight: '1',
-              width: window.innerWidth <= 768 ? '40px' : '44px',
-              height: window.innerWidth <= 768 ? '40px' : '44px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            {hideUI ? '👁️' : '🙈'}
-          </button>
+          {/* 隐藏UI按钮 - 单独显示在UI隐藏时 */}
+          {hideUI && (
+            <button 
+              onClick={() => setHideUI(false)}
+              title="显示UI"
+              style={{ 
+                position: 'absolute',
+                bottom: window.innerWidth <= 768 ? '15px' : '30px', 
+                left: window.innerWidth <= 768 ? '15px' : '40px',
+                zIndex: 11,
+                padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                backgroundColor: '#FFD700', 
+                border: '1px solid rgba(255, 215, 0, 0.5)', 
+                color: '#000', 
+                fontFamily: 'sans-serif', 
+                fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+                cursor: 'pointer', 
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                lineHeight: '1',
+                width: window.innerWidth <= 768 ? '40px' : '44px',
+                height: window.innerWidth <= 768 ? '40px' : '44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              👁️
+            </button>
+          )}
 
           {/* UI - AI Status */}
           <div style={{ 
