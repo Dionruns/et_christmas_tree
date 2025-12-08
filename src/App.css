@@ -90,6 +90,37 @@ body, html {
   }
 }
 
+/* 横屏优化 */
+@media (orientation: landscape) and (max-height: 600px) {
+  /* 横屏时调整UI布局 */
+  body, html, #root {
+    height: 100vh;
+    width: 100vw;
+  }
+  
+  /* 横屏时缩小按钮 */
+  button {
+    font-size: 14px !important;
+    padding: 8px !important;
+    width: 36px !important;
+    height: 36px !important;
+  }
+  
+  /* 横屏时调整文字大小 */
+  .handwriting-text {
+    font-size: 0.9em !important;
+  }
+}
+
+/* 竖屏优化 */
+@media (orientation: portrait) {
+  /* 竖屏时保持默认布局 */
+  body, html, #root {
+    height: 100vh;
+    width: 100vw;
+  }
+}
+
 /* 防止移动端页面被拖动 */
 body {
   position: fixed;

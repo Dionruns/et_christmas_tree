@@ -1059,40 +1059,12 @@ export default function GrandTreeApp() {
       try {
         await containerRef.current?.requestFullscreen();
         setIsFullscreen(true);
-        // 锁定为竖屏
-        if (screen.orientation && 'lock' in screen.orientation) {
-          try {
-            await (screen.orientation as any).lock('portrait');
-          } catch (err) {
-            console.log('无法锁定屏幕方向:', err);
-          }
-        }
       } catch (err) {
         console.error('无法进入全屏:', err);
       }
     } else {
       await document.exitFullscreen();
       setIsFullscreen(false);
-      // 解锁屏幕方向
-      if (screen.orientation && 'unlock' in screen.orientation) {
-        (screen.orientation as any).unlock();
-      }
-    }
-  };
-
-  // 切换屏幕方向
-  const toggleOrientation = async () => {
-    if (screen.orientation && 'lock' in screen.orientation) {
-      try {
-        const currentOrientation = screen.orientation.type;
-        if (currentOrientation.includes('portrait')) {
-          await (screen.orientation as any).lock('landscape');
-        } else {
-          await (screen.orientation as any).lock('portrait');
-        }
-      } catch (err) {
-        console.error('无法切换屏幕方向:', err);
-      }
     }
   };
 
@@ -1619,31 +1591,33 @@ export default function GrandTreeApp() {
               >
                 {isFullscreen ? '⊡' : '⛶'}
               </button>
-              {isFullscreen && (
-                <button 
-                  onClick={toggleOrientation}
-                  title="切换屏幕方向"
-                  style={{ 
-                    padding: window.innerWidth <= 768 ? '10px' : '12px', 
-                    backgroundColor: 'rgba(0,0,0,0.5)', 
-                    border: '1px solid rgba(255, 215, 0, 0.5)', 
-                    color: '#FFD700', 
-                    fontFamily: 'sans-serif', 
-                    fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
-                    cursor: 'pointer', 
-                    backdropFilter: 'blur(4px)',
-                    borderRadius: '8px',
-                    lineHeight: '1',
-                    width: window.innerWidth <= 768 ? '40px' : '44px',
-                    height: window.innerWidth <= 768 ? '40px' : '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  🔄
-                </button>
-              )}
+
+              <button 
+                onClick={() => {
+                  alert('请旋转您的手机以切换横屏/竖屏显示');
+                }}
+                title="旋转屏幕提示"
+                style={{ 
+                  padding: window.innerWidth <= 768 ? '10px' : '12px', 
+                  backgroundColor: 'rgba(0,0,0,0.5)', 
+                  border: '1px solid rgba(255, 215, 0, 0.5)', 
+                  color: '#FFD700', 
+                  fontFamily: 'sans-serif', 
+                  fontSize: window.innerWidth <= 768 ? '18px' : '20px', 
+                  cursor: 'pointer', 
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: '8px',
+                  lineHeight: '1',
+                  width: window.innerWidth <= 768 ? '40px' : '44px',
+                  height: window.innerWidth <= 768 ? '40px' : '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                🔄
+              </button>
+
               <button 
                 onClick={() => setHideUI(!hideUI)}
                 title="隐藏UI"
