@@ -596,8 +596,8 @@ const Experience = ({ sceneState, rotationSpeed, userName }: { sceneState: 'CHAO
         ref={controlsRef} 
         enablePan={true} 
         enableZoom={true} 
-        minDistance={20} 
-        maxDistance={120} 
+        minDistance={2.7} 
+        maxDistance={84.2*1.990} 
         autoRotate={rotationSpeed === 0 && sceneState === 'FORMED'} 
         autoRotateSpeed={0.3} 
         minPolarAngle={0}
